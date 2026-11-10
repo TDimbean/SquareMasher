@@ -1,0 +1,550 @@
+export global Theme {
+    in-out property <bool> dark: false;
+    out property <color> window-background: dark ? #1f1d1a : #faf8ef;
+    out property <color> primary-text: dark ? #f2e9df : #776e65;
+    out property <color> secondary-text: dark ? #b8aca2 : #9b8f82;
+    out property <color> board-background: dark ? #3d3833 : #bbada0;
+    out property <color> cell-background: dark ? #504841 : #cdc1b4;
+    out property <color> score-background: dark ? #514942 : #bbada0;
+    out property <color> score-label: dark ? #cfc3b9 : #eee4da;
+    out property <color> button-background: dark ? #3a342f : #e7ded5;
+    out property <color> button-hover: dark ? #544b43 : #ffffff;
+    out property <color> button-pressed: dark ? #201c19 : #b7a99c;
+    out property <color> button-disabled: dark ? #292521 : #d8d1ca;
+    out property <color> button-selected: dark ? #74675c : #8f7a66;
+    out property <color> button-border: dark ? #756b62 : #bbada0;
+    out property <color> overlay: dark ? #1f1d1af2 : #faf8eff2;
+}
+
+export struct MovingTile {
+    value: int,
+    from-index: int,
+    to-index: int,
+}
+
+export struct PulsingTile {
+    value: int,
+    from-index: int,
+    to-index: int,
+}
+
+component ActionButton inherits Rectangle {
+    in property <string> text;
+    in property <string> accessibility-label: root.text;
+    in property <bool> enabled: true;
+    in property <bool> selected: false;
+    in property <bool> checkable: false;
+    in property <length> text-size: root.height * 0.38;
+    callback clicked();
+
+    border-radius: root.height * 0.14;
+    border-width: button-focus.has-focus ? root.height * 0.06 : root.height * 0.025;
+    border-color: button-focus.has-focus ? Theme.primary-text
+        : root.selected ? Theme.primary-text
+        : Theme.button-border;
+    background: !root.enabled ? Theme.button-disabled
+        : root.selected ? Theme.button-selected
+        : touch.pressed ? Theme.button-pressed
+        : touch.has-hover ? Theme.button-hover
+        : Theme.button-background;
+    forward-focus: button-focus;
+    accessible-role: button;
+    accessible-label: root.accessibility-label;
+    accessible-enabled: root.enabled;
+    accessible-checkable: root.checkable;
+    accessible-checked: root.selected;
+    accessible-action-default => {
+        if root.enabled {
+            root.clicked();
+        }
+    }
+
+    Text {
+        text: root.text;
+        color: root.selected || Theme.dark ? #ffffff : Theme.primary-text;
+        font-size: root.text-size;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    button-focus := FocusScope {
+        x: 0px;
+        width: 0px;
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if event.text == Key.Space || event.text == Key.Return {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+}
+
+component IconButton inherits ActionButton {
+    in property <int> icon-kind;
+
+    text: "";
+
+    if root.icon-kind == 0: Path {
+        x: parent.width * 0.2;
+        y: parent.height * 0.2;
+        width: parent.width * 0.6;
+        height: parent.height * 0.6;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M 8 6 L 3 11 L 8 16 M 4 11 C 7 4 18 4 21 12 C 23 18 18 22 12 21";
+        fill: transparent;
+        stroke: root.enabled ? Theme.primary-text : Theme.secondary-text;
+        stroke-width: root.height * 0.055;
+    }
+
+    if root.icon-kind == 1: Path {
+        x: parent.width * 0.2;
+        y: parent.height * 0.2;
+        width: parent.width * 0.6;
+        height: parent.height * 0.6;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M 16 4 L 21 9 L 16 14 M 20 9 C 17 3 7 3 4 9 C 1 15 5 21 12 21 C 17 21 20 18 21 14";
+        fill: transparent;
+        stroke: Theme.primary-text;
+        stroke-width: root.height * 0.055;
+    }
+
+    if root.icon-kind == 2: Path {
+        x: parent.width * 0.2;
+        y: parent.height * 0.2;
+        width: parent.width * 0.6;
+        height: parent.height * 0.6;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M 16 3 C 10 5 9 14 14 18 C 17 21 20 20 22 18 C 19 23 11 23 6 18 C 1 13 3 5 10 2 C 12 1 14 2 16 3 Z";
+        fill: Theme.primary-text;
+    }
+
+    if root.icon-kind == 3: Path {
+        x: parent.width * 0.2;
+        y: parent.height * 0.2;
+        width: parent.width * 0.6;
+        height: parent.height * 0.6;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M 12 7 A 5 5 0 1 1 11.99 7 M 12 1 L 12 4 M 12 20 L 12 23 M 1 12 L 4 12 M 20 12 L 23 12 M 4 4 L 6 6 M 18 18 L 20 20 M 20 4 L 18 6 M 6 18 L 4 20";
+        fill: transparent;
+        stroke: Theme.primary-text;
+        stroke-width: root.height * 0.055;
+    }
+}
+
+component ScoreBox inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+
+    border-radius: root.height * 0.11;
+    background: Theme.score-background;
+
+    Text {
+        y: parent.height * 0.08;
+        width: parent.width;
+        height: parent.height * 0.34;
+        text: root.label;
+        color: Theme.score-label;
+        font-size: parent.height * 0.19;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    Text {
+        y: parent.height * 0.36;
+        width: parent.width;
+        height: parent.height * 0.56;
+        text: root.value;
+        color: #ffffff;
+        font-size: parent.height * 0.32;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+component Tile inherits Rectangle {
+    in property <int> value;
+    in property <length> base-size;
+    in property <float> visual-scale: 1.0;
+
+    width: root.base-size * root.visual-scale;
+    height: root.base-size * root.visual-scale;
+    border-radius: root.base-size * 0.078 * root.visual-scale;
+    background: value == 0 ? Theme.cell-background
+        : value == 2 ? #eee4da
+        : value == 4 ? #ede0c8
+        : value == 8 ? #f2b179
+        : value == 16 ? #f59563
+        : value == 32 ? #f67c5f
+        : value == 64 ? #f65e3b
+        : value == 128 ? #edcf72
+        : value == 256 ? #edcc61
+        : value == 512 ? #edc850
+        : value == 1024 ? #edc53f
+        : value == 2048 ? #edc22e
+        : #3c3a32;
+
+    Text {
+        text: root.value == 0 ? "" : "\{root.value}";
+        color: root.value <= 4 ? #776e65 : #f9f6f2;
+        font-size: (root.value < 100 ? root.base-size * 0.378
+            : root.value < 1000 ? root.base-size * 0.322
+            : root.value < 10000 ? root.base-size * 0.267
+            : root.base-size * 0.211) * root.visual-scale;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+export component GameWindow inherits Window {
+    in property <image> app-icon;
+    in property <[int]> tiles;
+    in property <[MovingTile]> moving-tiles;
+    in property <[PulsingTile]> pulsing-tiles;
+    in property <[bool]> pulsing-mask;
+    in property <string> score: "0";
+    in property <string> high-score: "0";
+    in property <string> status;
+    in property <bool> game-over: false;
+    in property <bool> game-won: false;
+    in property <bool> can-undo: false;
+    in-out property <bool> animating: false;
+    in-out property <float> move-progress: 0.0;
+    in-out property <bool> pulsing: false;
+    in-out property <float> merge-grow-progress: 0.0;
+    in-out property <float> merge-shrink-progress: 0.0;
+    in-out property <bool> pulse-interrupted: false;
+    in-out property <float> pulse-interrupt-progress: 0.0;
+    in-out property <float> pulse-interrupt-start-scale: 1.0;
+    in-out property <bool> reset-confirming: false;
+    out property <float> merge-pulse-scale: root.pulse-interrupted
+        ? root.pulse-interrupt-start-scale
+            + (1.0 - root.pulse-interrupt-start-scale) * root.pulse-interrupt-progress
+        : 1.0 + 0.3 * root.merge-grow-progress * (1.0 - root.merge-shrink-progress);
+    property <length> ui: min(root.width / 460, root.height / 680);
+    property <length> content-width: 460 * root.ui;
+    property <length> content-height: 680 * root.ui;
+    property <length> arena-size: 412 * root.ui;
+    property <length> arena-gap: root.arena-size * 11 / 412;
+    property <length> cell-size: root.arena-size * 90 / 412;
+    property <length> cell-step: root.arena-size * 100 / 412;
+    callback moved(string);
+    callback reset();
+    callback undo();
+    callback keep-going();
+
+    animate move-progress {
+        duration: root.animating ? 90ms : 0ms;
+        easing: ease-out;
+    }
+
+    animate merge-grow-progress {
+        duration: root.pulsing ? 60ms : 0ms;
+        easing: ease-in;
+    }
+
+    animate merge-shrink-progress {
+        duration: root.pulsing ? 120ms : 0ms;
+        easing: ease-out-elastic;
+    }
+
+    animate pulse-interrupt-progress {
+        duration: root.pulse-interrupted ? 30ms : 0ms;
+        easing: ease-out;
+    }
+
+    title: "SquareMasher";
+    icon: root.app-icon;
+    preferred-width: 368px;
+    preferred-height: 544px;
+    min-width: 276px;
+    min-height: 408px;
+    always-on-top: true;
+    background: Theme.window-background;
+    default-font-size: 14 * root.ui;
+    forward-focus: keyboard;
+
+    keyboard := FocusScope {
+        width: parent.width;
+        height: parent.height;
+        KeyBinding { keys: @keys(LeftArrow); activated => { root.moved("left"); } }
+        KeyBinding { keys: @keys(A); activated => { root.moved("left"); } }
+        KeyBinding { keys: @keys(RightArrow); activated => { root.moved("right"); } }
+        KeyBinding { keys: @keys(D); activated => { root.moved("right"); } }
+        KeyBinding { keys: @keys(UpArrow); activated => { root.moved("up"); } }
+        KeyBinding { keys: @keys(W); activated => { root.moved("up"); } }
+        KeyBinding { keys: @keys(DownArrow); activated => { root.moved("down"); } }
+        KeyBinding { keys: @keys(S); activated => { root.moved("down"); } }
+
+        content := Rectangle {
+            x: (root.width - root.content-width) / 2;
+            y: (root.height - root.content-height) / 2;
+            width: root.content-width;
+            height: root.content-height;
+            background: Theme.window-background;
+
+            Text {
+                x: 24 * root.ui;
+                y: 24 * root.ui;
+                width: 216 * root.ui;
+                height: 72 * root.ui;
+                text: "Square\nMasher";
+                color: Theme.primary-text;
+                font-size: 33 * root.ui;
+                font-weight: 800;
+                vertical-alignment: center;
+            }
+
+            ScoreBox {
+                x: 252 * root.ui;
+                y: 28 * root.ui;
+                width: 88 * root.ui;
+                height: 64 * root.ui;
+                label: "SCORE";
+                value: root.score;
+            }
+
+            ScoreBox {
+                x: 348 * root.ui;
+                y: 28 * root.ui;
+                width: 88 * root.ui;
+                height: 64 * root.ui;
+                label: "BEST";
+                value: root.high-score;
+            }
+
+            IconButton {
+                x: 300 * root.ui;
+                y: 108 * root.ui;
+                width: 40 * root.ui;
+                height: 40 * root.ui;
+                icon-kind: 0;
+                accessibility-label: "Undo last move";
+                enabled: root.can-undo;
+                clicked => { root.undo(); keyboard.focus(); }
+            }
+
+            IconButton {
+                x: 348 * root.ui;
+                y: 108 * root.ui;
+                width: 40 * root.ui;
+                height: 40 * root.ui;
+                icon-kind: 1;
+                accessibility-label: "Reset progress";
+                clicked => { root.reset-confirming = true; keyboard.focus(); }
+            }
+
+            IconButton {
+                x: 396 * root.ui;
+                y: 108 * root.ui;
+                width: 40 * root.ui;
+                height: 40 * root.ui;
+                icon-kind: Theme.dark ? 3 : 2;
+                accessibility-label: Theme.dark ? "Use light mode" : "Use dark mode";
+                clicked => { Theme.dark = !Theme.dark; keyboard.focus(); }
+            }
+
+            arena := Rectangle {
+                x: 24 * root.ui;
+                y: 162 * root.ui;
+                width: root.arena-size;
+                height: root.arena-size;
+                border-radius: root.arena-size * 9 / 412;
+                background: Theme.board-background;
+                clip: false;
+
+                for cell[index] in root.tiles: Rectangle {
+                    x: root.arena-gap + Math.mod(index, 4) * root.cell-step;
+                    y: root.arena-gap + Math.floor(index / 4) * root.cell-step;
+                    width: root.cell-size;
+                    height: root.cell-size;
+                    border-radius: root.cell-size * 7 / 90;
+                    background: Theme.cell-background;
+                }
+
+                for tile[index] in root.tiles: Tile {
+                    x: root.arena-gap + Math.mod(index, 4) * root.cell-step;
+                    y: root.arena-gap + Math.floor(index / 4) * root.cell-step;
+                    base-size: root.cell-size;
+                    value: tile;
+                    visible: !root.animating && tile != 0
+                        && (!root.pulsing || !root.pulsing-mask[index]);
+                }
+
+                for motion in root.moving-tiles: Tile {
+                    x: root.arena-gap + root.cell-step * (
+                        Math.mod(motion.from-index, 4) * (1.0 - root.move-progress)
+                        + Math.mod(motion.to-index, 4) * root.move-progress
+                    );
+                    y: root.arena-gap + root.cell-step * (
+                        Math.floor(motion.from-index / 4) * (1.0 - root.move-progress)
+                        + Math.floor(motion.to-index / 4) * root.move-progress
+                    );
+                    base-size: root.cell-size;
+                    value: motion.value;
+                    visible: root.animating;
+                }
+
+                for pulse in root.pulsing-tiles: Tile {
+                    x: root.arena-gap + root.cell-step * (
+                        Math.mod(pulse.from-index, 4) * (1.0 - root.move-progress)
+                        + Math.mod(pulse.to-index, 4) * root.move-progress
+                    ) - root.cell-size * (root.merge-pulse-scale - 1.0) / 2;
+                    y: root.arena-gap + root.cell-step * (
+                        Math.floor(pulse.from-index / 4) * (1.0 - root.move-progress)
+                        + Math.floor(pulse.to-index / 4) * root.move-progress
+                    ) - root.cell-size * (root.merge-pulse-scale - 1.0) / 2;
+                    base-size: root.cell-size;
+                    value: pulse.value;
+                    visual-scale: root.merge-pulse-scale;
+                    visible: root.pulsing;
+                }
+
+                Rectangle {
+                    width: parent.width;
+                    height: parent.height;
+                    background: Theme.overlay;
+                    visible: (root.game-won || root.game-over) && !root.reset-confirming;
+
+                    Text {
+                        y: parent.height * 0.28;
+                        width: parent.width;
+                        height: parent.height * 0.16;
+                        text: root.game-won ? "Clear" : "Stuck";
+                        color: Theme.primary-text;
+                        font-size: parent.width * 0.117;
+                        font-weight: 800;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    ActionButton {
+                        x: parent.width * 0.2;
+                        y: parent.height * 0.5;
+                        width: parent.width * 0.6;
+                        height: parent.height * 0.1;
+                        text: "Start Over";
+                        text-size: parent.height * 0.036;
+                        clicked => { root.reset(); keyboard.focus(); }
+                    }
+
+                    ActionButton {
+                        x: parent.width * 0.2;
+                        y: parent.height * 0.63;
+                        width: parent.width * 0.6;
+                        height: parent.height * 0.1;
+                        text: "Keep Going";
+                        text-size: parent.height * 0.036;
+                        visible: root.game-won;
+                        clicked => { root.keep-going(); keyboard.focus(); }
+                    }
+                }
+
+                Rectangle {
+                    width: parent.width;
+                    height: parent.height;
+                    background: Theme.overlay;
+                    visible: root.reset-confirming;
+
+                    Text {
+                        x: parent.width * 0.1;
+                        y: parent.height * 0.18;
+                        width: parent.width * 0.8;
+                        height: parent.height * 0.22;
+                        text: "Are you sure you want to reset progress?";
+                        color: Theme.primary-text;
+                        font-size: parent.width * 0.062;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                    }
+
+                    ActionButton {
+                        x: parent.width * 0.2;
+                        y: parent.height * 0.49;
+                        width: parent.width * 0.6;
+                        height: parent.height * 0.1;
+                        text: "Reset";
+                        text-size: parent.height * 0.036;
+                        clicked => {
+                            root.reset-confirming = false;
+                            root.reset();
+                            keyboard.focus();
+                        }
+                    }
+
+                    ActionButton {
+                        x: parent.width * 0.2;
+                        y: parent.height * 0.62;
+                        width: parent.width * 0.6;
+                        height: parent.height * 0.1;
+                        text: "Cancel";
+                        text-size: parent.height * 0.036;
+                        clicked => { root.reset-confirming = false; keyboard.focus(); }
+                    }
+                }
+            }
+
+            Text {
+                x: 24 * root.ui;
+                y: 586 * root.ui;
+                width: 412 * root.ui;
+                height: 28 * root.ui;
+                text: root.status;
+                color: Theme.primary-text;
+                font-size: 14 * root.ui;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                wrap: word-wrap;
+            }
+
+            Text {
+                x: 24 * root.ui;
+                y: 628 * root.ui;
+                width: 412 * root.ui;
+                height: 20 * root.ui;
+                text: "Close this window to keep playing from the tray.";
+                color: Theme.secondary-text;
+                font-size: 12 * root.ui;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
+export component AppTray inherits SystemTrayIcon {
+    in property <image> app-icon;
+    callback open();
+    callback reset-window-size();
+    callback quit();
+
+    icon: root.app-icon;
+    title: "SquareMasher";
+    tooltip: "SquareMasher — 2048 in the tray";
+    clicked => { root.open(); }
+
+    Menu {
+        MenuItem { title: "Open SquareMasher"; activated => { root.open(); } }
+        MenuItem { title: "Reset Window Size"; activated => { root.reset-window-size(); } }
+        MenuSeparator { }
+        MenuItem { title: "Quit"; activated => { root.quit(); } }
+    }
+}

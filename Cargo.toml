@@ -1,0 +1,31 @@
+[package]
+name = "square-masher"
+version = "0.1.0"
+edition = "2024"
+description = "Portable tray-hosted 2048 game"
+build = "build.rs"
+
+[dependencies]
+fastrand = "2.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+slint = { version = "=1.18.1", default-features = false, features = [
+    "accessibility",
+    "backend-winit-x11",
+    "compat-1-2",
+    "renderer-software",
+    "std",
+    "system-tray",
+] }
+
+[build-dependencies]
+slint-build = "=1.18.1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = "0.13"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
