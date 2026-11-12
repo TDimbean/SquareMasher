@@ -212,7 +212,6 @@ component Tile inherits Rectangle {
 }
 
 export component GameWindow inherits Window {
-    in property <image> app-icon;
     in property <[int]> tiles;
     in property <[MovingTile]> moving-tiles;
     in property <[PulsingTile]> pulsing-tiles;
@@ -269,7 +268,7 @@ export component GameWindow inherits Window {
     }
 
     title: "SquareMasher";
-    icon: root.app-icon;
+    icon: @image-url("../assets/square-masher.png");
     preferred-width: 368px;
     preferred-height: 544px;
     min-width: 276px;
@@ -531,12 +530,11 @@ export component GameWindow inherits Window {
 }
 
 export component AppTray inherits SystemTrayIcon {
-    in property <image> app-icon;
     callback open();
     callback reset-window-size();
     callback quit();
 
-    icon: root.app-icon;
+    icon: @image-url("../assets/square-masher.png");
     title: "SquareMasher";
     tooltip: "SquareMasher — 2048 in the tray";
     clicked => { root.open(); }

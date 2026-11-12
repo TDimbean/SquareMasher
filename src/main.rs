@@ -9,8 +9,8 @@ use std::time::Duration;
 
 use game::{Direction, Game, GameStore, MergedTile, MoveTransition};
 use slint::{
-    CloseRequestResponse, ComponentHandle, Image, LogicalSize, ModelRc, PhysicalPosition,
-    Rgba8Pixel, SharedPixelBuffer, Timer, TimerMode, VecModel,
+    CloseRequestResponse, ComponentHandle, LogicalSize, ModelRc, PhysicalPosition, Timer,
+    TimerMode, VecModel,
 };
 
 slint::include_modules!();
@@ -62,9 +62,6 @@ fn run() -> Result<(), Box<dyn Error>> {
     });
     let window = GameWindow::new()?;
     let tray = AppTray::new()?;
-    let icon = app_icon();
-    window.set_app_icon(icon.clone());
-    tray.set_app_icon(icon);
     sync_ui(&window, &state);
 
     {
@@ -487,28 +484,6 @@ fn primary_screen_size() -> Option<(u32, u32)> {
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn primary_screen_size() -> Option<(u32, u32)> {
     None
-}
-
-fn app_icon() -> Image {
-    const SIZE: u32 = 64;
-    let mut pixels = SharedPixelBuffer::<Rgba8Pixel>::new(SIZE, SIZE);
-    for (index, pixel) in pixels.make_mut_slice().iter_mut().enumerate() {
-        let x = index as u32 % SIZE;
-        let y = index as u32 / SIZE;
-        let column = (x >= 33) as usize;
-        let row = (y >= 33) as usize;
-        let gap = (29..=34).contains(&x) || (29..=34).contains(&y);
-        let (red, green, blue) = if gap {
-            (187, 173, 160)
-        } else {
-            [
-                [(238, 228, 218), (242, 177, 121)],
-                [(245, 149, 99), (237, 194, 46)],
-            ][row][column]
-        };
-        *pixel = Rgba8Pixel::new(red, green, blue, 255);
-    }
-    Image::from_rgba8(pixels)
 }
 
 #[cfg(test)]
