@@ -8,6 +8,9 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use game::{Direction, Game, GameStore, MergedTile, MoveTransition};
+use i_slint_backend_winit::{
+    EventResult, WinitWindowAccessor, winit::event::WindowEvent as WinitWindowEvent,
+};
 use slint::{
     CloseRequestResponse, ComponentHandle, LogicalSize, ModelRc, PhysicalPosition, Timer,
     TimerMode, VecModel,
@@ -71,6 +74,16 @@ fn run() -> Result<(), Box<dyn Error>> {
             CloseRequestResponse::HideWindow
         });
     }
+    {
+        let state = state.clone();
+        window.window().on_winit_window_event(move |window, event| {
+            if should_hide_for_window_event(event) && window.is_visible() {
+                state.redraw_timer.stop();
+                let _ = window.hide();
+            }
+            EventResult::Propagate
+        });
+    }
 
     {
         let weak = window.as_weak();
@@ -105,8 +118,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         let state = state.clone();
         tray.on_open(move || {
             if let Some(window) = weak.upgrade() {
-                let _ = window.show();
-                start_unlocked_redraw(&window, &state);
+                let _ = show_and_focus(&window, &state);
             }
         });
     }
@@ -115,9 +127,8 @@ fn run() -> Result<(), Box<dyn Error>> {
         let state = state.clone();
         tray.on_reset_window_size(move || {
             if let Some(window) = weak.upgrade() {
-                let _ = window.show();
                 reset_window_size(&window);
-                start_unlocked_redraw(&window, &state);
+                let _ = show_and_focus(&window, &state);
             }
         });
     }
@@ -129,12 +140,57 @@ fn run() -> Result<(), Box<dyn Error>> {
         });
     }
 
-    window.show()?;
-    start_unlocked_redraw(&window, &state);
+    show_and_focus(&window, &state)?;
     tray.show()?;
     slint::run_event_loop()?;
     state.store.save(&state.game.borrow())?;
     Ok(())
+}
+
+fn should_hide_for_window_event(event: &WinitWindowEvent) -> bool {
+    match event {
+        WinitWindowEvent::Focused(focused) => !focused,
+        WinitWindowEvent::Resized(size) => size.width == 0 || size.height == 0,
+        _ => false,
+    }
+}
+
+fn show_and_focus(window: &GameWindow, state: &Rc<AppState>) -> Result<(), slint::PlatformError> {
+    window.window().set_minimized(false);
+    window.show()?;
+    start_unlocked_redraw(window, state);
+    focus_window(window);
+    Ok(())
+}
+
+fn focus_window(window: &GameWindow) {
+    if focus_window_now(window) {
+        return;
+    }
+
+    let weak_window = window.as_weak();
+    Timer::single_shot(Duration::ZERO, move || {
+        if let Some(window) = weak_window.upgrade() {
+            focus_window_now(&window);
+        }
+    });
+}
+
+fn focus_window_now(window: &GameWindow) -> bool {
+    window
+        .window()
+        .with_winit_window(|window| {
+            window.set_minimized(false);
+            window.focus_window();
+        })
+        .is_some()
+}
+
+fn is_window_minimized(window: &GameWindow) -> bool {
+    window
+        .window()
+        .with_winit_window(|window| window.is_minimized().unwrap_or(false))
+        .unwrap_or_else(|| window.window().is_minimized())
 }
 
 fn parse_direction(value: &str) -> Option<Direction> {
@@ -429,14 +485,22 @@ fn sync_ui(window: &GameWindow, state: &AppState) {
     window.set_status(status.into());
 }
 
-fn start_unlocked_redraw(window: &GameWindow, state: &AppState) {
+fn start_unlocked_redraw(window: &GameWindow, state: &Rc<AppState>) {
     let weak_window = window.as_weak();
+    let weak_state = Rc::downgrade(state);
     state
         .redraw_timer
         .start(TimerMode::Repeated, Duration::ZERO, move || {
             let Some(window) = weak_window.upgrade() else {
                 return;
             };
+            if is_window_minimized(&window) {
+                if let Some(state) = weak_state.upgrade() {
+                    state.redraw_timer.stop();
+                }
+                let _ = window.hide();
+                return;
+            }
             if window.window().is_visible() {
                 window.window().request_redraw();
             }
@@ -490,6 +554,27 @@ fn primary_screen_size() -> Option<(u32, u32)> {
 mod animation_tests {
     use super::*;
     use game::TileMotion;
+    use i_slint_backend_winit::winit::dpi::PhysicalSize;
+
+    #[test]
+    fn focus_loss_hides_window() {
+        assert!(should_hide_for_window_event(&WinitWindowEvent::Focused(
+            false
+        )));
+        assert!(!should_hide_for_window_event(&WinitWindowEvent::Focused(
+            true
+        )));
+    }
+
+    #[test]
+    fn minimize_sized_event_hides_window() {
+        assert!(should_hide_for_window_event(&WinitWindowEvent::Resized(
+            PhysicalSize::new(0, 544),
+        )));
+        assert!(!should_hide_for_window_event(&WinitWindowEvent::Resized(
+            PhysicalSize::new(368, 544),
+        )));
+    }
 
     #[test]
     fn moving_pulsing_tile_is_interrupted() {
